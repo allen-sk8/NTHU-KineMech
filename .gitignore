@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Data files (Recommended to keep out of GitHub)
+*.pdf
+*.csv
+*.xlsx
+*.MTS
+*.exe
+*.pth
+*.pt
+**/data/
+**/output/
+**/input/
+**/archive/
+*.html
+
+# Specific to this project
+Baseball_Event_Annotation/data/
+Baseball_Performance_Analysis/data/
+Baseball_Performance_Analysis/archive/
+Gait_Report_Extractor/data/
+IMU_Jump_Calculator/data/
+IMU_Jump_Calculator/input/
+IMU_Jump_Calculator/output/
+Tekfit_Report_Merger/data/
