@@ -29,6 +29,7 @@ Desktop.ini
 **/input/
 **/archive/
 *.html
+*.cap
 
 # Specific to this project
 Baseball_Event_Annotation/data/

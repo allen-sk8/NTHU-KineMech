@@ -1,0 +1,5 @@
+pandas
+numpy
+scipy
+openpyxl
+jumpmetrics @ git+https://github.com/stevenhirsch/force-plate-jump-analyses.git
