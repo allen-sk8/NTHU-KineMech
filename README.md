@@ -1,6 +1,6 @@
 # NTHU-KineMech 實驗室工具集 (Laboratory Tools)
 
-歡迎使用 NTHU-KineMech 實驗室開發的運動科學與生物力學分析工具集。本儲存庫整合了針對棒球表現、步態分析以及 IMU 數據處理的五大核心工具。
+歡迎使用 NTHU-KineMech 實驗室開發的運動科學與生物力學分析工具集。本儲存庫整合了針對棒球表現、步態分析以及 IMU 數據處理的六大核心工具。
 
 ## 🛠 工具清單
 
@@ -11,6 +11,7 @@
 | **IMOTEK PDF 讀取器** | `Tekfit_Report_Merger` | 針對 Tekfit 報告進行數據整合，支援多種負重條件分析。 | Python, Pandas |
 | **棒球表現綜合分析** | `Baseball_Performance_Analysis` | 結合力板與 Blast 數據，生成球員表現的 3D 診斷地圖。 | Plotly, Scikit-learn |
 | **跳躍高度測量工具** | `IMU_Jump_Calculator` | 利用 IMU 感測器數據透過 DTW 演算法計算跳躍高度。 | SciPy, DTW Algorithm |
+| **PASCO 力板自動化分析** | `PASCO_Analysis` | 批次將 `.cap` 格式轉換為 CSV 並自動生成跳躍力學指標報表。 | Python, Binary Parsing |
 
 ---
 
@@ -46,6 +47,7 @@
 - [IMOTEK PDF 讀取器](./Tekfit_Report_Merger/README.md)
 - [棒球表現綜合分析](./Baseball_Performance_Analysis/README.md)
 - [跳躍高度測量工具](./IMU_Jump_Calculator/README.md)
+- [PASCO 力板自動化分析](./PASCO_Analysis/README.md)
 
 ---
 *Developed by Allen @ NTHU-KineMech Lab*
