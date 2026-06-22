@@ -412,7 +412,8 @@ def plot_jump_events_integrated(trial_id, force_series, extra_curves, config, sa
 
 def main():
     parser = argparse.ArgumentParser(description="PASCO CMJ (蹲跳) 垂直跳躍分析工具")
-    parser.add_argument("--plot",default=True, help="是否在分析後自動生成診斷繪圖")#預設開啟
+    parser.add_argument("--no-plot", action="store_false", dest="plot", help="若帶入此參數則不生成診斷繪圖")
+    parser.add_argument("--force", action="store_true", help="是否強制重新計算並覆寫已存在的 Excel 報告")
     parser.add_argument("--fs", type=int, default=1000, help="數據取樣率 (Hz)")
     parser.add_argument("--cutoff", type=float, default=20.0, help="Butterworth 低通濾波切斷頻率 (Hz)")
     parser.add_argument("--quiet-max", type=float, default=1.5, help="靜態體重平均區間上限 (秒)")
@@ -473,6 +474,13 @@ def main():
                 
                 num_runs = len(df.columns) // 2
                 for r in range(1, num_runs + 1):
+                    trial_id = f"{file_id}-{r}"
+                    output_path = os.path.join(subject_dir, f"{trial_id}.xlsx")
+                    
+                    if os.path.exists(output_path) and not args.force:
+                        print(f"  -> Run {r} 已存在輸出 Excel，跳過計算。")
+                        continue
+                        
                     f1 = df.iloc[:, (r-1)*2]
                     f2 = df.iloc[:, (r-1)*2+1]
                     total_f = (f1 + f2).dropna().values
@@ -512,8 +520,6 @@ def main():
                         )
                         
                         # 直接與 CSV 放在同一個受試者資料夾下！
-                        trial_id = f"{file_id}-{r}"
-                        output_path = os.path.join(subject_dir, f"{trial_id}.xlsx")
                         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
                             res_output.to_excel(writer, sheet_name="Details", index=False)
                             df_cmj.to_excel(writer, sheet_name="CMJ", index=False)

@@ -178,3 +178,118 @@ def format_cmj_sheet(file_path):
     
     wb.save(file_path)
     wb.close()
+
+def calculate_sj_metrics(event_vals, force_series, p_series, bw, fs, height=np.nan, age=np.nan):
+    """
+    計算 SJ 蹲跳之肌力指標，對齊實驗室金標準的第二工作表 (SJ)
+    
+    參數:
+        event_vals (dict): 包含 5 個事件的 Frame、Time (s)、F-value (N)、S-value (m) 等數值的字典
+        force_series (np.ndarray): 原始力量序列
+        p_series (np.ndarray): 功率序列
+        bw (float): 基準體重 (N)
+        fs (int): 取樣率 (Hz)
+        height (float): 身高 (cm)，若無則設為 np.nan
+        age (float): 年齡，若無則設為 np.nan
+    """
+    dt = 1.0 / fs
+    bw_n = bw
+    weight_kg = round(bw / 9.81, 2)
+    
+    # 提取四捨五入至兩位小數的特徵時間點
+    t_som = round(event_vals["動作開始"]["Time"], 2)
+    t_peak = round(event_vals["最大推蹬力"]["Time"], 2)
+    t_takeoff = round(event_vals["離地瞬間"]["Time"], 2)
+    t_landing = round(event_vals["著地瞬間"]["Time"], 2)
+    
+    som_idx = int(event_vals["動作開始"]["Frame"])
+    takeoff_idx = int(event_vals["離地瞬間"]["Frame"])
+    
+    # --- 1. 受試者基本資料 ---
+    # 衝量 (N·s)
+    # 推進相時間區間為 [som_idx:takeoff_idx] 的力量淨力積分
+    impulse_raw = np.sum((force_series[som_idx:takeoff_idx] - bw) * dt)
+    impulse_std = impulse_raw / bw_n
+    
+    # 總動作時間 (推進期時間)
+    total_action_time = t_takeoff - t_som
+    
+    # --- 2. 下肢動態肌力特徵 ---
+    # 跳躍高度 (飛行時間法)
+    t_flight = t_landing - t_takeoff
+    jump_height = 9.81 * (t_flight ** 2) / 8
+    jump_height_std = jump_height / (height / 100.0) if not np.isnan(height) else np.nan
+    
+    # 推蹬力峰值 (淨力)
+    peak_force_con = event_vals["最大推蹬力"]["F"]
+    peak_force_con_std = peak_force_con / bw_n
+    
+    # 推蹬發力率 (RFD)
+    # 在 SJ 中，發力率計算為推蹬力峰值淨力除以 (t_peak - t_som)
+    # 注意，如果時間差為 0，設為 0.0
+    rfd_con = peak_force_con / (t_peak - t_som) if t_peak != t_som else 0.0
+    rfd_con_std = rfd_con / bw_n
+    
+    # 反應力指數 (RSI)
+    rsi = jump_height / total_action_time if total_action_time > 0 else 0.0
+    rsi_std = rsi / (height / 100.0) if not np.isnan(height) else np.nan
+    
+    # 向心功率峰值
+    con_power_peak = event_vals["最大向心功率"]["P"]
+    con_power_peak_std = con_power_peak / bw_n
+    
+    # 向心做功量 (向心做功量是從 som_idx 到 takeoff_idx 的功率積分)
+    work_con = np.sum(p_series[som_idx:takeoff_idx] * dt)
+    work_con_std = work_con / bw_n
+    
+    # --- 3. 輸出普通一維 DataFrame (由寫入端進行 openpyxl 格式化後處理) ---
+    headers = [
+        "資料", "身高", "體重", "年齡", "衝量", "總動作時間",
+        "評估指標", "跳躍高度", "推蹬力峰值", "推蹬發力率", "反應力指數", "向心功率峰值", "向心做功量"
+    ]
+    
+    raw_row = [
+        "原始", height, weight_kg, age, round(impulse_raw, 2), round(total_action_time, 2),
+        "原始", round(jump_height, 2), round(peak_force_con, 2), round(rfd_con, 2), round(rsi, 2), round(con_power_peak, 2), round(work_con, 2)
+    ]
+    
+    std_row = [
+        "%標準化", height, weight_kg, age, round(impulse_std, 2) if not np.isnan(impulse_std) else np.nan, 100.0,
+        "%標準化", round(jump_height_std, 2) if not np.isnan(jump_height_std) else np.nan,
+        round(peak_force_con_std, 2) if not np.isnan(peak_force_con_std) else np.nan,
+        round(rfd_con_std, 2) if not np.isnan(rfd_con_std) else np.nan,
+        round(rsi_std, 2) if not np.isnan(rsi_std) else np.nan,
+        round(con_power_peak_std, 2) if not np.isnan(con_power_peak_std) else np.nan,
+        round(work_con_std, 2) if not np.isnan(work_con_std) else np.nan
+    ]
+    
+    df_sj = pd.DataFrame([raw_row, std_row], columns=headers)
+    return df_sj
+
+def format_sj_sheet(file_path):
+    """
+    使用 openpyxl 載入寫好的 Excel 檔案，對 SJ 工作表進行後處理：
+    1. 在 Row 1 插入大分類標題
+    2. 合併對應的儲存格，以配合實驗室金標準的視覺化結構
+    """
+    wb = openpyxl.load_workbook(file_path)
+    if "SJ" not in wb.sheetnames:
+        wb.close()
+        return
+        
+    ws = wb["SJ"]
+    
+    # 插入第一行
+    ws.insert_rows(1)
+    
+    # 寫入大標題名稱
+    ws["A1"] = "受試者基本資料"
+    ws["G1"] = "下肢動態肌力特徵"
+    
+    # 合併儲存格
+    ws.merge_cells("A1:F1")
+    ws.merge_cells("G1:M1")
+    
+    wb.save(file_path)
+    wb.close()
+

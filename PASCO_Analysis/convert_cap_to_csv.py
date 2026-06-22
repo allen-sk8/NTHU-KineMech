@@ -2,6 +2,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import struct
 import os
+import shutil
 import pandas as pd
 import numpy as np
 
@@ -144,6 +145,13 @@ def batch_process(input_base_dir, output_base_dir):
                     csv_name = file.replace('.cap', '.csv')
                     output_path = os.path.join(target_out_dir, csv_name)
                     convert_cap_to_csv(cap_path, output_path)
+                    
+                    # 轉換完成後，將原始的 .cap 檔案移動到輸出目錄中，避免重複轉換
+                    try:
+                        shutil.move(cap_path, os.path.join(target_out_dir, file))
+                        print(f"已將原始檔案移動至: {os.path.join(target_out_dir, file)}")
+                    except Exception as e:
+                        print(f"移動檔案 {file} 失敗: {e}")
 
 if __name__ == "__main__":
     batch_process('inputs', 'outputs')
