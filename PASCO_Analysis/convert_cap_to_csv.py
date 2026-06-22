@@ -113,17 +113,37 @@ def convert_cap_to_csv(cap_path, output_path):
             # 參考格式只有 header 有引號，數值沒有。且帶有 UTF-8 BOM。
             df.to_csv(output_path, index=False, float_format='%.2f', quoting=0, encoding='utf-8-sig')
             print(f"已儲存至: {output_path}")
-
-def batch_process(input_dir, output_dir):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        
-    for file in os.listdir(input_dir):
-        if file.endswith('.cap'):
-            cap_path = os.path.join(input_dir, file)
-            csv_name = file.replace('.cap', '.csv')
-            output_path = os.path.join(output_dir, csv_name)
-            convert_cap_to_csv(cap_path, output_path)
+def batch_process(input_base_dir, output_base_dir):
+    subfolders = ['cmj', 'sj']
+    for sub in subfolders:
+        in_dir = os.path.join(input_base_dir, sub)
+        if not os.path.exists(in_dir):
+            os.makedirs(in_dir)
+            print(f"已建立輸入資料夾: {in_dir}，請在此處建立子資料夾（如 2026跆拳）並置入 .cap 檔案。")
+            continue
+            
+        # 遍歷 inputs/<cmj|sj> 下的所有專案子資料夾 (例如 2026跆拳)
+        for item in os.listdir(in_dir):
+            item_path = os.path.join(in_dir, item)
+            if os.path.isdir(item_path):
+                proj_name = item
+                cap_files = [f for f in os.listdir(item_path) if f.endswith('.cap')]
+                if len(cap_files) == 0:
+                    continue
+                    
+                print(f"\n--- 開始轉換 [{sub.upper()}] 專案 [{proj_name}] 的數據 ---")
+                for file in cap_files:
+                    cap_path = os.path.join(item_path, file)
+                    file_id = file.split('.')[0]
+                    
+                    # 每個 .cap 檔案在 outputs 下擁有獨立的資料夾
+                    # 路徑格式：outputs/cmj/2026跆拳/001/
+                    target_out_dir = os.path.join(output_base_dir, sub, proj_name, file_id)
+                    os.makedirs(target_out_dir, exist_ok=True)
+                    
+                    csv_name = file.replace('.cap', '.csv')
+                    output_path = os.path.join(target_out_dir, csv_name)
+                    convert_cap_to_csv(cap_path, output_path)
 
 if __name__ == "__main__":
-    batch_process('inputs', 'outputs/force')
+    batch_process('inputs', 'outputs')
