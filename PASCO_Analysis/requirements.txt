@@ -2,4 +2,5 @@ pandas
 numpy
 scipy
 openpyxl
+matplotlib
 jumpmetrics @ git+https://github.com/stevenhirsch/force-plate-jump-analyses.git
