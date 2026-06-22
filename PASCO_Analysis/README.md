@@ -38,14 +38,34 @@ PASCO_Analysis/
 ├── metrics_calculator.py         # 獨立模組：臨床進階指標公式與 Excel 自動格式化
 ├── jump_metrics_documentation_cmj.xlsx # CMJ 進階指標與學術計算公式說明手冊
 ├── jump_metrics_documentation_sj.xlsx  # SJ 進階指標與學術計算公式說明手冊
+├── run_all.bat                   # ⚡ 一鍵全流程腳本 (Windows 雙擊即可執行)
+├── run_all.sh                    # ⚡ 一鍵全流程腳本 (Git Bash / WSL / macOS)
 └── requirements.txt              # 專案依賴套件清單
 ```
 
 ---
 
-## 🚀 兩階段操作流程說明
+## ⚡ 一鍵全流程（推薦給同事使用）
 
-本系統之執行分為兩階段，流程設計簡單且具高度防呆性。請開啟終端機（Terminal）並確保處於專案根目錄下：
+**最簡單的用法**：將 `.cap` 檔案資料夾丟入 `inputs/cmj/` 或 `inputs/sj/` 後，直接雙擊 `run_all.bat`（Windows）即可完成全部流程。
+
+```bash
+# Windows：直接雙擊 run_all.bat，或在終端機中執行
+.\run_all.bat
+
+# Git Bash / WSL / macOS
+bash run_all.sh
+```
+
+腳本會自動依序執行：
+1. **階段一**：將 `inputs/` 中的 `.cap` 原始檔批次轉換為 CSV，並將已處理的 `.cap` 移動至 `outputs/` 防止重複轉換。
+2. **階段二**：對 CMJ 與 SJ 的 CSV 數據進行完整分析，自動跳過已存在的結果，只計算新增數據。
+
+---
+
+## 🚀 兩階段操作流程說明（進階用法）
+
+若您需要單獨執行某個階段或微調參數，可以分開操作：
 
 ### 階段一：解析與歸檔原始數據 (.cap ➡️ CSV，附防重複移動機制)
 
