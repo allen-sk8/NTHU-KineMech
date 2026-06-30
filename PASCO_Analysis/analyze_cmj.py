@@ -419,7 +419,7 @@ def main():
     parser.add_argument("--quiet-max", type=float, default=1.5, help="靜態體重平均區間上限 (秒)")
     parser.add_argument("--quiet-buffer", type=int, default=200, help="體重平均前退最大失重之緩衝時間 (毫秒)")
     parser.add_argument("--som-pct", type=float, default=0.025, help="SoM 判定體重偏離閾值百分比 (如 0.025 代表 2.5%)")
-    parser.add_argument("--som-window", type=int, default=250, help="SoM 逆向尋找最大窗口長度 (毫秒)")
+    parser.add_argument("--som-window", type=int, default=280, help="SoM 逆向尋找最大窗口長度 (毫秒)")
     parser.add_argument("--takeoff-n", type=float, default=10.0, help="離地瞬間精確力閾值 (N)")
     parser.add_argument("--landing-n", type=float, default=30.0, help="著地瞬間精確力閾值 (N)")
     parser.add_argument("--landing-window", type=int, default=150, help="著地瞬間防餘震安全視窗時間 (毫秒)")

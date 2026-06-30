@@ -40,3 +40,7 @@ IMU_Jump_Calculator/data/
 IMU_Jump_Calculator/input/
 IMU_Jump_Calculator/output/
 Tekfit_Report_Merger/data/
+
+#例外：以下檔案不忽略
+!PASCO_Analysis/jump_metrics_documentation_cmj.xlsx
+!PASCO_Analysis/jump_metrics_documentation_sj.xlsx

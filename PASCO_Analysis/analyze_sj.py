@@ -7,6 +7,10 @@ from matplotlib.lines import Line2D
 from scipy.signal import butter, filtfilt
 import openpyxl
 
+# 設定 Matplotlib 中文字型，避免亂碼警告
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'DFKai-SB', 'Segoe UI', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+
 # 載入我們的指標計算庫
 from metrics_calculator import calculate_sj_metrics, format_sj_sheet
 

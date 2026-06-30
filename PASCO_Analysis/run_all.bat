@@ -1,41 +1,40 @@
 @echo off
-chcp 65001 >nul 2>&1
 echo ==================================================
-echo    PASCO 力板垂直跳躍自動化分析系統 - 一鍵全流程
+echo    PASCO �O�O�������D�۰ʤƤ��R�t�� - �@����y�{
 echo ==================================================
 echo.
 
-REM 切換至腳本所在目錄 (確保相對路徑正確)
+REM �����ܸ}���Ҧb�ؿ� (�T�O�۹���|���T)
 cd /d "%~dp0"
 
-echo [階段一] 轉換原始 .cap 檔案為 CSV 力量數據 ...
+echo [���q�@] �ഫ��l .cap �ɮ׬� CSV �O�q�ƾ� ...
 echo --------------------------------------------------
 python convert_cap_to_csv.py
 if %errorlevel% neq 0 (
-    echo [錯誤] 階段一轉換失敗！請檢查 Python 環境與 inputs 資料夾。
+    echo [���~] ���q�@�ഫ���ѡI���ˬd Python ���һP inputs ��Ƨ��C
     pause
     exit /b 1
 )
 echo.
 
-echo [階段二-A] 分析 CMJ (反向動作蹲跳) 數據 ...
+echo [���q�G-A] ���R CMJ (�ϦV�ʧ@�۸�) �ƾ� ...
 echo --------------------------------------------------
 python analyze_cmj.py
 if %errorlevel% neq 0 (
-    echo [警告] CMJ 分析過程發生錯誤，請檢查輸出日誌。
+    echo [ĵ�i] CMJ ���R�L�{�o�Ϳ��~�A���ˬd��X��x�C
 )
 echo.
 
-echo [階段二-B] 分析 SJ (靜態蹲跳) 數據 ...
+echo [���q�G-B] ���R SJ (�R�A�۸�) �ƾ� ...
 echo --------------------------------------------------
 python analyze_sj.py
 if %errorlevel% neq 0 (
-    echo [警告] SJ 分析過程發生錯誤，請檢查輸出日誌。
+    echo [ĵ�i] SJ ���R�L�{�o�Ϳ��~�A���ˬd��X��x�C
 )
 echo.
 
 echo ==================================================
-echo    全部流程執行完畢！
-echo    結果已儲存至 outputs/ 資料夾中。
+echo    �����y�{���槹���I
+echo    ���G�w�x�s�� outputs/ ��Ƨ����C
 echo ==================================================
 pause
