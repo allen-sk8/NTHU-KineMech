@@ -218,6 +218,23 @@ def transcode_video(path: str):
     base_name = os.path.basename(path)
     name, ext = os.path.splitext(base_name)
     
+    # 建立安全刪除函式，解決 Windows 檔案鎖定問題
+    def safe_remove(file_path, retries=5, delay=0.5):
+        import gc
+        import time
+        for i in range(retries):
+            try:
+                gc.collect()  # 強制執行垃圾回收以釋放未完全關閉的影片串流 file handles
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                return True
+            except PermissionError:
+                if i < retries - 1:
+                    time.sleep(delay)
+                else:
+                    raise
+        return False
+    
     # 臨時轉檔路徑
     temp_output_path = os.path.join(dir_name, f"temp_{name}.mp4")
     # 最終儲存路徑（統一為 .mp4，不加 _h264）
@@ -226,7 +243,7 @@ def transcode_video(path: str):
     # 如果臨時檔已存在，先刪除以防衝突
     if os.path.exists(temp_output_path):
         try:
-            os.remove(temp_output_path)
+            safe_remove(temp_output_path)
         except Exception:
             pass
             
@@ -247,18 +264,17 @@ def transcode_video(path: str):
             raise HTTPException(status_code=500, detail=f"轉碼失敗: {result.stderr}")
             
         # 轉碼成功，替換舊檔案
-        # 1. 刪除原來的影片檔（若檔名不同才需要刪，但為防範萬一，若 final_path 等於 path，我們後面用 os.replace 或先刪除後 rename 即可）
-        # 注意：在 Windows 上，如果檔案被鎖定，直接 os.remove 會失敗。因此在此之前需要確保播放器已經釋放該檔案
+        # 1. 刪除原來的影片檔（使用 safe_remove 排除播放器鎖定）
         if os.path.exists(path):
             try:
-                os.remove(path)
+                safe_remove(path)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"無法刪除原始影片檔案 (可能被播放器鎖定): {str(e)}")
         
         # 2. 如果 final_path 仍存在且與 path 不同，刪除之
         if os.path.exists(final_path) and final_path != path:
             try:
-                os.remove(final_path)
+                safe_remove(final_path)
             except Exception:
                 pass
                 
@@ -279,7 +295,7 @@ def transcode_video(path: str):
     except Exception as e:
         if os.path.exists(temp_output_path):
             try:
-                os.remove(temp_output_path)
+                safe_remove(temp_output_path)
             except Exception:
                 pass
         if isinstance(e, HTTPException):
