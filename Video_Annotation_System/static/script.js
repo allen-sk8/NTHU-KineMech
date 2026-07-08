@@ -114,7 +114,8 @@ createApp({
             this.videoError = !video.is_supported;
             this.isTranscoding = false;
             
-            const videoUrl = `/api/video_stream?path=${encodeURIComponent(video.path)}`;
+            // 加上時間戳參數避免瀏覽器快取先前播放失敗的影片或舊格式檔案
+            const videoUrl = `/api/video_stream?path=${encodeURIComponent(video.path)}&t=${new Date().getTime()}`;
             this.$refs.videoPlayer.src = videoUrl;
             this.$refs.videoPlayer.playbackRate = this.playbackRate;
             this.$refs.videoPlayer.load();

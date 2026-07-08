@@ -50,7 +50,7 @@
                     </div>
 
                     <!-- Video Error Overlay (Unsupported codec) -->
-                    <div v-if="videoError && currentVideo" class="absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-center text-center p-6 z-20">
+                    <div v-if="videoError && currentVideo && !isTranscoding" class="absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-center text-center p-6 z-20">
                         <i class="fas fa-exclamation-triangle text-amber-500 text-5xl mb-4"></i>
                         <h3 class="text-lg font-bold text-white mb-2">瀏覽器不支援此影片的編碼格式</h3>
                         <p class="text-sm text-gray-400 max-w-md mb-6">
@@ -61,6 +61,15 @@
                             <i v-else class="fas fa-magic mr-2"></i>
                             <span>{{ isTranscoding ? '影片轉碼中，請稍候...' : '立即修復影片編碼' }}</span>
                         </button>
+                    </div>
+
+                    <!-- Single Video Transcoding Overlay -->
+                    <div v-if="isTranscoding" class="absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-center text-center p-6 z-30">
+                        <i class="fas fa-spinner fa-spin text-blue-500 text-5xl mb-4"></i>
+                        <h3 class="text-lg font-bold text-white mb-2">正在修復此影片編碼中</h3>
+                        <p class="text-sm text-gray-400 max-w-md">
+                            正在將影片轉碼為標準相容的 H.264 格式，此過程直接覆蓋與替換原始影片，請勿關閉網頁...
+                        </p>
                     </div>
 
                     <!-- Batch Transcoding Overlay -->
