@@ -21,7 +21,11 @@ createApp({
                 message: '',
                 type: 'info',
                 timeout: null
-            }
+            },
+            videoError: false,
+            isTranscoding: false,
+            isBatchTranscoding: false,
+            batchTranscodeProgress: ''
         }
     },
     computed: {
@@ -107,6 +111,8 @@ createApp({
         async selectVideo(video) {
             this.currentVideo = video;
             this.annotations = []; 
+            this.videoError = !video.is_supported;
+            this.isTranscoding = false;
             
             const videoUrl = `/api/video_stream?path=${encodeURIComponent(video.path)}`;
             this.$refs.videoPlayer.src = videoUrl;
@@ -126,12 +132,129 @@ createApp({
         onVideoLoaded() {
             this.duration = this.$refs.videoPlayer.duration;
             this.isPlaying = !this.$refs.videoPlayer.paused;
+            this.videoError = false;
         },
         onTimeUpdate() {
             this.currentTime = this.$refs.videoPlayer.currentTime;
         },
-        togglePlay() {
+        onVideoError(e) {
+            if (this.currentVideo) {
+                this.videoError = true;
+                this.isPlaying = false;
+                this.showToast('影片格式不支援，請使用下方轉碼修復功能', 'error');
+            }
+        },
+        async transcodeCurrentVideo() {
             if (!this.currentVideo) return;
+            this.isTranscoding = true;
+            
+            // 釋放瀏覽器對影片檔案的鎖定
+            if (this.$refs.videoPlayer) {
+                this.$refs.videoPlayer.src = "";
+                this.$refs.videoPlayer.load();
+            }
+            
+            // 延遲 500 毫秒以讓瀏覽器徹底與伺服器斷開連線，釋放檔案鎖定
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+                const res = await fetch(`/api/transcode?path=${encodeURIComponent(this.currentVideo.path)}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.showToast('影片轉碼成功！已載入相容的 H.264 版本。', 'success');
+                    this.videoError = false;
+                    this.isTranscoding = false;
+                    
+                    const origName = this.currentVideo.filename;
+                    const baseName = origName.substring(0, origName.lastIndexOf('.'));
+                    const targetName = baseName + ".mp4";
+                    
+                    // 重新載入影片清單與選取影片
+                    await this.loadVideos();
+                    const updatedVid = this.videos.find(v => v.filename === targetName);
+                    if (updatedVid) {
+                        this.selectVideo(updatedVid);
+                    } else {
+                        const fallbackVid = this.videos.find(v => v.filename === origName);
+                        if (fallbackVid) this.selectVideo(fallbackVid);
+                    }
+                } else {
+                    throw new Error(data.detail || '轉碼失敗');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showToast(error.message, 'error');
+                this.isTranscoding = false;
+            }
+        },
+        async transcodeAllVideos() {
+            const unsupportedVideos = this.videos.filter(v => !v.is_supported);
+            if (unsupportedVideos.length === 0) {
+                this.showToast('所有影片均已支援播放，無需轉碼。', 'info');
+                return;
+            }
+            
+            if (!confirm(`確定要將全部 ${unsupportedVideos.length} 部不支援的影片轉檔為 H.264 格式嗎？此動作將會覆蓋/替換原始檔案。`)) {
+                return;
+            }
+            
+            this.isBatchTranscoding = true;
+            
+            // 釋放播放器鎖定（以防當前影片正在被轉檔）
+            if (this.$refs.videoPlayer) {
+                this.$refs.videoPlayer.src = "";
+                this.$refs.videoPlayer.load();
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (let i = 0; i < unsupportedVideos.length; i++) {
+                const video = unsupportedVideos[i];
+                this.batchTranscodeProgress = `正在轉碼影片 (${i + 1}/${unsupportedVideos.length}): ${video.filename}`;
+                
+                try {
+                    const res = await fetch(`/api/transcode?path=${encodeURIComponent(video.path)}`, {
+                        method: 'POST'
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        successCount++;
+                    } else {
+                        console.error(`轉檔失敗: ${video.filename}`, data.detail);
+                        failCount++;
+                    }
+                } catch (error) {
+                    console.error(`轉檔失敗: ${video.filename}`, error);
+                    failCount++;
+                }
+            }
+            
+            this.isBatchTranscoding = false;
+            this.batchTranscodeProgress = '';
+            
+            this.showToast(`一鍵轉檔完成！成功: ${successCount} 部，失敗: ${failCount} 部。`, successCount > 0 ? 'success' : 'error');
+            
+            // 重新載入影片清單
+            const currentVidPath = this.currentVideo ? this.currentVideo.path : null;
+            await this.loadVideos();
+            
+            // 如果原本有選擇影片，試著重新選取它（以檔名主體比對）
+            if (currentVidPath) {
+                const origBase = currentVidPath.substring(0, currentVidPath.lastIndexOf('.'));
+                const reselected = this.videos.find(v => v.path.substring(0, v.path.lastIndexOf('.')) === origBase);
+                if (reselected) {
+                    this.selectVideo(reselected);
+                } else {
+                    this.currentVideo = null;
+                }
+            }
+        },
+        togglePlay() {
+            if (!this.currentVideo || this.videoError) return;
             if (this.$refs.videoPlayer.paused) {
                 this.$refs.videoPlayer.play();
                 this.isPlaying = true;
@@ -141,7 +264,7 @@ createApp({
             }
         },
         stepFrame(direction) {
-            if (!this.currentVideo) return;
+            if (!this.currentVideo || this.videoError) return;
             this.$refs.videoPlayer.pause();
             this.isPlaying = false;
             
@@ -150,7 +273,7 @@ createApp({
             this.$refs.videoPlayer.currentTime += (direction * step);
         },
         seekVideo(event) {
-            if (!this.currentVideo) return;
+            if (!this.currentVideo || this.videoError) return;
             const rect = event.currentTarget.getBoundingClientRect();
             const pos = (event.clientX - rect.left) / rect.width;
             this.$refs.videoPlayer.currentTime = pos * this.duration;
@@ -178,8 +301,8 @@ createApp({
             return tag ? tag.color : '#9ca3af';
         },
         addAnnotation(tag) {
-            if (!this.currentVideo) {
-                this.showToast('請先載入並選擇影片', 'error');
+            if (!this.currentVideo || this.videoError) {
+                this.showToast('無法在不支援播放的影片上標註', 'error');
                 return;
             }
             
@@ -198,7 +321,7 @@ createApp({
             this.annotations = this.annotations.filter(a => a !== target);
         },
         jumpToAnnotation(ann) {
-            if (!this.currentVideo || !this.$refs.videoPlayer) return;
+            if (!this.currentVideo || !this.$refs.videoPlayer || this.videoError) return;
             this.$refs.videoPlayer.currentTime = ann.timestamp_sec;
             this.$refs.videoPlayer.pause();
             this.isPlaying = false;
@@ -219,11 +342,12 @@ createApp({
                     body: JSON.stringify(payload)
                 });
                 
+                const data = await res.json();
                 if (res.ok) {
                     this.showToast('標註已成功儲存', 'success');
                     return true;
                 } else {
-                    throw new Error('儲存失敗');
+                    throw new Error(data.detail || '儲存失敗');
                 }
             } catch (error) {
                 this.showToast(error.message, 'error');
@@ -301,7 +425,7 @@ createApp({
         },
         handleKeydown(e) {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-            if (this.showTemplateModal) return;
+            if (this.showTemplateModal || this.videoError) return;
             
             if (e.code === 'Enter') {
                 e.preventDefault();
