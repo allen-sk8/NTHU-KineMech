@@ -1,0 +1,27 @@
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Custom Scrollbar for dark theme */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(31, 41, 55, 1); /* bg-gray-800 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 1); /* bg-gray-600 */
+    border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 1); /* bg-gray-500 */
+}
+
+/* Make sure video player focuses properly so hotkeys work even if clicking around */
+*:focus {
+    outline: none;
+}

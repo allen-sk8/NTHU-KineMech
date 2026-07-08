@@ -44,3 +44,7 @@ Tekfit_Report_Merger/data/
 #例外：以下檔案不忽略
 !PASCO_Analysis/jump_metrics_documentation_cmj.xlsx
 !PASCO_Analysis/jump_metrics_documentation_sj.xlsx
+
+# Video Annotation System
+Video_Annotation_System/videos/
+!Video_Annotation_System/static/index.html
