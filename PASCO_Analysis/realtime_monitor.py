@@ -24,6 +24,89 @@ except ImportError:
 import matplotlib
 matplotlib.use('Agg')
 
+def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, save_dir):
+    """
+    額外繪製兩張供 HTML 報表使用的簡明關係圖：
+    1. 力量-時間圖 (Force-Time)
+    2. 功率-時間圖 (Power-Time)
+    不包含下半部的時間軸子圖，更簡潔大氣。
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Segoe UI', 'Arial']
+    plt.rcParams['axes.unicode_minus'] = False
+    
+    filtered_force = extra_curves.get("filtered_force", force_series)
+    power_curve = extra_curves.get("power_curve", np.zeros_like(force_series))
+    events_map = extra_curves.get("events_map", {})
+    bw = extra_curves.get("bw", None)
+    
+    fs = config.fs
+    time_sec = np.arange(len(force_series)) / fs
+    
+    # 1. 繪製力量圖
+    fig1, ax1 = plt.subplots(figsize=(8, 4))
+    ax1.plot(time_sec, force_series, color='#2C3E50', alpha=0.25, label='原始力量 (Raw Force)')
+    ax1.plot(time_sec, filtered_force, color='#1E3D59', linewidth=2.5, label='濾波力量 (Filtered Force)')
+    if bw is not None:
+        ax1.axhline(bw, color='#E74C3C', linestyle='--', linewidth=1.5, label=f'體重線 (BW: {bw:.1f} N)')
+        
+    # 標註事件點 (垂直線與點)
+    colors_dict = {
+        "Start": "#1ABC9C", "Unweight": "#E67E22", "Unweight_Peak": "#D35400", 
+        "Braking": "#3498DB", "Propulsive": "#9B59B6", "Flight": "#E74C3C", 
+        "Peak": "#27AE60", "Landing": "#F1C40F", "End": "#7F8C8D",
+        "Jump_Start": "#1ABC9C", "Take_off": "#E74C3C", "Landing_Start": "#F1C40F"
+    }
+    for event_name, frame in events_map.items():
+        if frame is not None and not np.isnan(frame) and 0 <= int(frame) < len(time_sec):
+            t_val = time_sec[int(frame)]
+            f_val = filtered_force[int(frame)]
+            color = colors_dict.get(event_name, "#7F8C8D")
+            ax1.axvline(t_val, color=color, linestyle=':', alpha=0.8, linewidth=1.5)
+            ax1.scatter(t_val, f_val, color=color, s=60, zorder=5)
+            # 在圖上標示事件英文
+            ax1.annotate(event_name, (t_val, f_val), textcoords="offset points", 
+                         xytext=(4,4), ha='left', fontsize=8, fontweight='bold',
+                         bbox=dict(boxstyle="round,pad=0.2", fc="yellow", alpha=0.25))
+            
+    ax1.set_title(f"力量-時間關係圖 (Force-Time)", fontsize=11, fontweight='bold', pad=8)
+    ax1.set_xlabel("時間 (s)", fontsize=9)
+    ax1.set_ylabel("力量 (N)", fontsize=9)
+    ax1.grid(True, linestyle='--', alpha=0.5)
+    ax1.legend(loc='upper right', fontsize=8, framealpha=0.8)
+    plt.tight_layout()
+    force_path = os.path.join(save_dir, f"{trial_id}_force.png")
+    fig1.savefig(force_path, dpi=120)
+    plt.close(fig1)
+    
+    # 2. 繪製功率圖
+    fig2, ax2 = plt.subplots(figsize=(8, 4))
+    ax2.plot(time_sec, power_curve, color='#27AE60', linewidth=2.5, label='機械功率 (Power)')
+    
+    # 標註功率圖中的事件點
+    for event_name, frame in events_map.items():
+        if frame is not None and not np.isnan(frame) and 0 <= int(frame) < len(time_sec):
+            t_val = time_sec[int(frame)]
+            p_val = power_curve[int(frame)]
+            color = colors_dict.get(event_name, "#7F8C8D")
+            ax2.axvline(t_val, color=color, linestyle=':', alpha=0.8, linewidth=1.5)
+            ax2.scatter(t_val, p_val, color=color, s=60, zorder=5)
+            ax2.annotate(event_name, (t_val, p_val), textcoords="offset points", 
+                         xytext=(4,4), ha='left', fontsize=8, fontweight='bold',
+                         bbox=dict(boxstyle="round,pad=0.2", fc="yellow", alpha=0.25))
+            
+    ax2.set_title(f"功率-時間關係圖 (Power-Time)", fontsize=11, fontweight='bold', pad=8)
+    ax2.set_xlabel("時間 (s)", fontsize=9)
+    ax2.set_ylabel("功率 (W)", fontsize=9)
+    ax2.grid(True, linestyle='--', alpha=0.5)
+    ax2.legend(loc='upper right', fontsize=8, framealpha=0.8)
+    plt.tight_layout()
+    power_path = os.path.join(save_dir, f"{trial_id}_power.png")
+    fig2.savefig(power_path, dpi=120)
+    plt.close(fig2)
+
 # 匯入現有的運算與分析模組（完全不修改原模組程式碼）
 from convert_cap_to_csv import convert_cap_to_csv
 import analyze_cmj
@@ -127,6 +210,11 @@ def render_report_html(action_type, info, metrics_df, image_name, num_runs=None,
     依據運動科學同學現有報表版面 (張華臻-1 / 張丞葳-1)，以 HTML + CSS 渲染精美報表
     """
     title = "ProGRF-CMJ 下肢動態肌力檢測報表" if action_type == "cmj" else "ProGRF-SJ 下肢動態肌力檢測報表"
+    
+    # 根據 image_name 推導力量圖與功率圖的相對路徑檔名
+    base_img_name = image_name.replace("_comparison.png", "")
+    force_img_name = f"{base_img_name}_force.png"
+    power_img_name = f"{base_img_name}_power.png"
     
     # 判斷是否為綜合平均報表，是的話在表格尾端多一行「量測次數」
     avg_row_html = ""
@@ -255,23 +343,24 @@ def render_report_html(action_type, info, metrics_df, image_name, num_runs=None,
         .info-table td strong {{
             color: #0f172a;
         }}
-        .chart-box {{
-            text-align: center;
+        .chart-flex-row {{
+            display: flex;
+            gap: 15px;
             margin-top: 15px;
             width: 100%;
-            height: 380px;        /* 限制高度，裁剪掉下半部 */
-            overflow: hidden;     /* 隱藏下半部 */
-            position: relative;
-            border: 1.5px solid #cbd5e1;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
         }}
-        .chart-box img {{
-            width: 100%;          /* 寬度撐滿 (放大) */
+        .chart-sub-box {{
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+            background-color: #ffffff;
+        }}
+        .chart-sub-box img {{
+            width: 100%;
             height: auto;
-            position: absolute;
-            top: 0;               /* 對齊最上方，保留力學曲線 */
-            left: 0;
+            display: block;
         }}
     </style>
 </head>
@@ -382,9 +471,14 @@ def render_report_html(action_type, info, metrics_df, image_name, num_runs=None,
             </div>
         </div>
 
-        <!-- 下方物理診斷圖表 -->
-        <div class="chart-box">
-            <img src="{image_name}" alt="物理特徵診斷圖表">
+        <!-- 下方物理診斷圖表 (力量與功率並排) -->
+        <div class="chart-flex-row">
+            <div class="chart-sub-box">
+                <img src="{force_img_name}" alt="力量-時間關係圖">
+            </div>
+            <div class="chart-sub-box">
+                <img src="{power_img_name}" alt="功率-時間關係圖">
+            </div>
         </div>
     </div>
 </body>
@@ -478,23 +572,24 @@ def render_report_html(action_type, info, metrics_df, image_name, num_runs=None,
         .info-table td strong {{
             color: #0f172a;
         }}
-        .chart-box {{
-            text-align: center;
+        .chart-flex-row {{
+            display: flex;
+            gap: 15px;
             margin-top: 15px;
             width: 100%;
-            height: 380px;        /* 限制高度，裁剪掉下半部 */
-            overflow: hidden;     /* 隱藏下半部 */
-            position: relative;
-            border: 1.5px solid #cbd5e1;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
         }}
-        .chart-box img {{
-            width: 100%;          /* 寬度撐滿 (放大) */
+        .chart-sub-box {{
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+            background-color: #ffffff;
+        }}
+        .chart-sub-box img {{
+            width: 100%;
             height: auto;
-            position: absolute;
-            top: 0;               /* 對齊最上方，保留力學曲線 */
-            left: 0;
+            display: block;
         }}
     </style>
 </head>
@@ -553,9 +648,14 @@ def render_report_html(action_type, info, metrics_df, image_name, num_runs=None,
             </div>
         </div>
 
-        <!-- 下方物理診斷圖表 -->
-        <div class="chart-box">
-            <img src="{image_name}" alt="物理特徵診斷圖表">
+        <!-- 下方物理診斷圖表 (力量與功率並排) -->
+        <div class="chart-flex-row">
+            <div class="chart-sub-box">
+                <img src="{force_img_name}" alt="力量-時間關係圖">
+            </div>
+            <div class="chart-sub-box">
+                <img src="{power_img_name}" alt="功率-時間關係圖">
+            </div>
         </div>
     </div>
 </body>
@@ -728,6 +828,7 @@ def process_new_cap_file(cap_path):
                 
                 # 繪製診斷圖
                 analyze_cmj.plot_jump_events_integrated(trial_id, total_f, extra_curves, config, plot_path)
+                plot_force_and_power_separate(trial_id, total_f, extra_curves, config, subject_dir)
                 
             else:
                 # SJ 計算與畫圖
@@ -772,6 +873,7 @@ def process_new_cap_file(cap_path):
                 
                 # 繪製診斷圖
                 analyze_sj.plot_jump_events_integrated(trial_id, total_f, extra_curves, config, plot_path)
+                plot_force_and_power_separate(trial_id, total_f, extra_curves, config, subject_dir)
                 
             # 生成該 Run 的 HTML / PDF 報表 (此為單一 Run 的獨立存檔)
             html_filename = f"{trial_id}_report.html"
