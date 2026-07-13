@@ -45,15 +45,6 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
     fs = config.fs
     time_sec = np.arange(len(force_series)) / fs
     
-    # 繁體中文與專業英文對照映射
-    event_display_names = {
-        "動作開始": "SoM (動作開始)",
-        "最大推蹬力": "Peak Force (最大推蹬力)",
-        "離地瞬間": "Take-off (離地瞬間)",
-        "著地瞬間": "Landing (著地瞬間)",
-        "最大向心功率": "Peak Power (最大向心功率)"
-    }
-    
     colors_dict = {
         "動作開始": "#1ABC9C", "最大推蹬力": "#2ecc71", 
         "離地瞬間": "#E74C3C", "著地瞬間": "#F1C40F", 
@@ -74,7 +65,6 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
             t_val = time_sec[int(frame)]
             f_val = filtered_force[int(frame)]
             
-            disp_name = event_display_names.get(event_name, event_name)
             color = colors_dict.get(event_name, "#7F8C8D")
             ax1.axvline(t_val, color=color, linestyle=':', alpha=0.8, linewidth=1.5)
             
@@ -98,7 +88,7 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
                 xytext = (6, 6)
                 ha = 'left'
                 
-            ax1.annotate(disp_name, (t_val, f_val), textcoords="offset points", 
+            ax1.annotate(event_name, (t_val, f_val), textcoords="offset points", 
                          xytext=xytext, ha=ha, fontsize=8, fontweight='bold',
                          bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#CBD5E1", alpha=0.9))
             
@@ -128,7 +118,6 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
             t_val = time_sec[int(frame)]
             p_val = power_curve[int(frame)]
             
-            disp_name = event_display_names.get(event_name, event_name)
             color = colors_dict.get(event_name, "#7F8C8D")
             ax2.axvline(t_val, color=color, linestyle=':', alpha=0.8, linewidth=1.5)
             
@@ -152,7 +141,7 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
                 xytext = (6, 6)
                 ha = 'left'
                 
-            ax2.annotate(disp_name, (t_val, p_val), textcoords="offset points", 
+            ax2.annotate(event_name, (t_val, p_val), textcoords="offset points", 
                          xytext=xytext, ha=ha, fontsize=8, fontweight='bold',
                          bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#CBD5E1", alpha=0.9))
             
