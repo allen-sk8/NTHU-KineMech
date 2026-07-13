@@ -32,6 +32,8 @@ Desktop.ini
 *.cap
 
 # Specific to this project
+PASCO_Analysis/inputs/
+PASCO_Analysis/outputs/
 Baseball_Event_Annotation/data/
 Baseball_Performance_Analysis/data/
 Baseball_Performance_Analysis/archive/
