@@ -45,6 +45,22 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
     fs = config.fs
     time_sec = np.arange(len(force_series)) / fs
     
+    # 繁體中文與專業英文對照映射
+    event_display_names = {
+        "動作開始": "SoM (動作開始)",
+        "最大推蹬力": "Peak Force (最大推蹬力)",
+        "離地瞬間": "Take-off (離地瞬間)",
+        "著地瞬間": "Landing (著地瞬間)",
+        "最大向心功率": "Peak Power (最大向心功率)"
+    }
+    
+    colors_dict = {
+        "動作開始": "#1ABC9C", "最大推蹬力": "#2ecc71", 
+        "離地瞬間": "#E74C3C", "著地瞬間": "#F1C40F", 
+        "最大向心功率": "#9B59B6", "Start": "#1ABC9C", 
+        "Peak": "#27AE60", "Landing": "#F1C40F"
+    }
+    
     # 1. 繪製力量圖
     fig1, ax1 = plt.subplots(figsize=(8, 4))
     ax1.plot(time_sec, force_series, color='#2C3E50', alpha=0.25, label='原始力量 (Raw Force)')
@@ -53,23 +69,38 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
         ax1.axhline(bw, color='#E74C3C', linestyle='--', linewidth=1.5, label=f'體重線 (BW: {bw:.1f} N)')
         
     # 標註事件點 (垂直線與點)
-    colors_dict = {
-        "Start": "#1ABC9C", "Unweight": "#E67E22", "Unweight_Peak": "#D35400", 
-        "Braking": "#3498DB", "Propulsive": "#9B59B6", "Flight": "#E74C3C", 
-        "Peak": "#27AE60", "Landing": "#F1C40F", "End": "#7F8C8D",
-        "Jump_Start": "#1ABC9C", "Take_off": "#E74C3C", "Landing_Start": "#F1C40F"
-    }
     for event_name, frame in events_map.items():
         if frame is not None and not np.isnan(frame) and 0 <= int(frame) < len(time_sec):
             t_val = time_sec[int(frame)]
             f_val = filtered_force[int(frame)]
+            
+            disp_name = event_display_names.get(event_name, event_name)
             color = colors_dict.get(event_name, "#7F8C8D")
             ax1.axvline(t_val, color=color, linestyle=':', alpha=0.8, linewidth=1.5)
-            ax1.scatter(t_val, f_val, color=color, s=60, zorder=5)
-            # 在圖上標示事件英文
-            ax1.annotate(event_name, (t_val, f_val), textcoords="offset points", 
-                         xytext=(4,4), ha='left', fontsize=8, fontweight='bold',
-                         bbox=dict(boxstyle="round,pad=0.2", fc="yellow", alpha=0.25))
+            
+            # 使用顯眼、帶白色描邊的小紅點
+            ax1.scatter(t_val, f_val, color='#E74C3C', s=35, edgecolors='white', linewidths=1.2, zorder=5)
+            
+            # 針對重疊點做防重疊偏移微調
+            if event_name == "最大向心功率":
+                xytext = (-8, 12)
+                ha = 'right'
+            elif event_name == "最大推蹬力":
+                xytext = (8, 12)
+                ha = 'left'
+            elif event_name == "動作開始":
+                xytext = (8, -16)
+                ha = 'left'
+            elif event_name == "離地瞬間" or event_name == "著地瞬間":
+                xytext = (8, -16)
+                ha = 'left'
+            else:
+                xytext = (6, 6)
+                ha = 'left'
+                
+            ax1.annotate(disp_name, (t_val, f_val), textcoords="offset points", 
+                         xytext=xytext, ha=ha, fontsize=8, fontweight='bold',
+                         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#CBD5E1", alpha=0.9))
             
     ax1.set_title(f"力量-時間關係圖 (Force-Time)", fontsize=11, fontweight='bold', pad=8)
     ax1.set_xlabel("時間 (s)", fontsize=9)
@@ -96,12 +127,34 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
         if frame is not None and not np.isnan(frame) and 0 <= int(frame) < len(time_sec):
             t_val = time_sec[int(frame)]
             p_val = power_curve[int(frame)]
+            
+            disp_name = event_display_names.get(event_name, event_name)
             color = colors_dict.get(event_name, "#7F8C8D")
             ax2.axvline(t_val, color=color, linestyle=':', alpha=0.8, linewidth=1.5)
-            ax2.scatter(t_val, p_val, color=color, s=60, zorder=5)
-            ax2.annotate(event_name, (t_val, p_val), textcoords="offset points", 
-                         xytext=(4,4), ha='left', fontsize=8, fontweight='bold',
-                         bbox=dict(boxstyle="round,pad=0.2", fc="yellow", alpha=0.25))
+            
+            # 使用顯眼、帶白色描邊的小紅點
+            ax2.scatter(t_val, p_val, color='#E74C3C', s=35, edgecolors='white', linewidths=1.2, zorder=5)
+            
+            # 針對重疊點做防重疊偏移微調
+            if event_name == "最大向心功率":
+                xytext = (-8, 12)
+                ha = 'right'
+            elif event_name == "最大推蹬力":
+                xytext = (8, 12)
+                ha = 'left'
+            elif event_name == "動作開始":
+                xytext = (8, -16)
+                ha = 'left'
+            elif event_name == "離地瞬間" or event_name == "著地瞬間":
+                xytext = (8, -16)
+                ha = 'left'
+            else:
+                xytext = (6, 6)
+                ha = 'left'
+                
+            ax2.annotate(disp_name, (t_val, p_val), textcoords="offset points", 
+                         xytext=xytext, ha=ha, fontsize=8, fontweight='bold',
+                         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#CBD5E1", alpha=0.9))
             
     ax2.set_title(f"功率-時間關係圖 (Power-Time)", fontsize=11, fontweight='bold', pad=8)
     ax2.set_xlabel("時間 (s)", fontsize=9)
@@ -211,11 +264,18 @@ def parse_subject_info_from_filename(filename, default_weight=None):
 # ==========================================
 # HTML 報表模板渲染器
 # ==========================================
-def render_report_html(action_type, info, metrics_df, image_name, num_runs=None, best_run_num=None):
+def render_report_html(action_type, info, metrics_df, image_name, num_runs=None, best_run_num=None, report_id=""):
     """
-    依據運動科學同學現有報表版面 (張華臻-1 / 張丞葳-1)，以 HTML + CSS 渲染精美報表
+    依據運動科學同學現有報表版面，以 HTML + CSS 渲染精美報表
     """
-    title = "ProGRF-CMJ 下肢動態肌力檢測報表" if action_type == "cmj" else "ProGRF-SJ 下肢動態肌力檢測報表"
+    system_name = "NTHU-KineMech"
+    action_name = "CMJ" if action_type == "cmj" else "SJ"
+    
+    # 報表標頭，將 ProGRF 替換為 NTHU-KineMech，並以編號（report_id）開頭
+    if num_runs is not None and best_run_num is not None:
+        title = f"{report_id} - {system_name} {action_name} 下肢動態肌力檢測報表 (綜合平均)"
+    else:
+        title = f"{report_id} - {system_name} {action_name} 下肢動態肌力檢測報表"
     
     # 根據 image_name 推導力量圖與功率圖的相對路徑檔名
     base_img_name = image_name.replace("_comparison.png", "")
@@ -225,7 +285,6 @@ def render_report_html(action_type, info, metrics_df, image_name, num_runs=None,
     # 判斷是否為綜合平均報表，是的話在表格尾端多一行「量測次數」
     avg_row_html = ""
     if num_runs is not None and best_run_num is not None:
-        title = f"ProGRF-{'CMJ' if action_type == 'cmj' else 'SJ'} 下肢動態肌力檢測報表 (綜合平均)"
         avg_row_html = f"""
         <tr><td>量測次數</td><td>{num_runs} 次 (最佳: Run {best_run_num})</td></tr>
         """
@@ -887,7 +946,7 @@ def process_new_cap_file(cap_path):
             html_path = os.path.join(subject_dir, html_filename)
             pdf_path = os.path.join(subject_dir, pdf_filename)
             
-            html_content = render_report_html(action_type, run_info, metrics_df, f"{trial_id}_comparison.png")
+            html_content = render_report_html(action_type, run_info, metrics_df, f"{trial_id}_comparison.png", report_id=trial_id)
             
             with open(html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
@@ -962,7 +1021,8 @@ def process_new_cap_file(cap_path):
                 avg_metrics_df, 
                 best_plot_filename, 
                 num_runs=len(metrics_list), 
-                best_run_num=best_run_num
+                best_run_num=best_run_num,
+                report_id=file_id
             )
             
             with open(summary_html_path, 'w', encoding='utf-8') as f:
@@ -1407,8 +1467,7 @@ class ReportHTTPHandler(SimpleHTTPRequestHandler):
             <p><strong>使用說明：</strong></p>
             <ol>
                 <li>在 <code>inputs/cmj/</code> 或 <code>inputs/sj/</code> 下建立專案資料夾（例如：<code>關西棒球檢測</code>）。</li>
-                <li>將 PASCO 產出的 <code>.cap</code> 檔案存檔至該資料夾。</li>
-                <li><strong>推薦檔名格式：</strong><code>姓名_性別_年齡_身高_體重.cap</code> 以自動提取受試者資訊。</li>
+                <li>將 PASCO 產出的 <code>.cap</code> 檔案（例如：<code>001.cap</code>、<code>002.cap</code> 等序號檔名）存檔至該資料夾。</li>
                 <li>分析將會自動完成，此網頁會<strong>自動彈出新分頁</strong>顯示該次量測的報表！</li>
             </ol>
             <div id="log-box" class="log-box">正在等待新量測數據...</div>
