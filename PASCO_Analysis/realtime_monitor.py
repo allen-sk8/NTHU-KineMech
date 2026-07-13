@@ -128,16 +128,16 @@ os.chdir(BASE_DIR)
 # ==========================================
 class MonitorState:
     def __init__(self):
-        self.latest_html = ""          # 最新生成的報表 HTML
+        self.latest_report_path = ""   # 最新生成的報表相對路徑 (例如 sj/自動報表測試/007/007_summary_report.html)
         self.latest_image_path = ""    # 最新診斷圖的實體檔案路徑
-        self.has_new_update = False    # 是否有新分析結果（用於通知網頁重整）
+        self.has_new_update = False    # 是否有新分析結果（用於通知網頁開新分頁）
         self.latest_update_time = 0.0  # 最新更新時間戳記 (強固輪詢防丟失)
         self.lock = threading.RLock()
         self.log_messages = []         # 即時日誌訊息
 
-    def update_result(self, html_content, image_path):
+    def update_result(self, report_rel_path, image_path):
         with self.lock:
-            self.latest_html = html_content
+            self.latest_report_path = report_rel_path
             self.latest_image_path = image_path
             self.latest_update_time = time.time()
             self.has_new_update = True
@@ -982,21 +982,15 @@ def process_new_cap_file(cap_path):
             
             STATE.add_log(f"已產出綜合平均 PDF 報表並儲存至: {summary_pdf_path}")
             
-            # 5. 更新本地 Web 狀態以同步彈出綜合平均報表 (圖片帶入 Web 虛擬路徑 /image 配合最佳圖檔實體路徑)
-            web_html = render_report_html(
-                action_type, 
-                avg_info, 
-                avg_metrics_df, 
-                "/image", 
-                num_runs=len(metrics_list), 
-                best_run_num=best_run_num
-            )
-            STATE.update_result(web_html, best_plot_path)
+            # 5. 更新本地 Web 狀態以同步彈出綜合平均報表
+            report_rel_path = f"{action_type}/{project_name}/{file_id}/{file_id}_summary_report.html"
+            report_rel_path = report_rel_path.replace("\\", "/")
+            STATE.update_result(report_rel_path, best_plot_path)
             
-            # 主動呼叫 webbrowser 彈出或聚焦瀏覽器視窗至最前台
+            # 主動呼叫 webbrowser 彈出或聚焦瀏覽器視窗至最前台，開啟專屬報告分頁！
             try:
                 def open_browser():
-                    webbrowser.open("http://localhost:5000")
+                    webbrowser.open(f"http://localhost:5000/report?path={report_rel_path}")
                 threading.Thread(target=open_browser, daemon=True).start()
             except Exception as e:
                 STATE.add_log(f"嘗試彈出瀏覽器失敗: {e}")
@@ -1117,98 +1111,253 @@ class ReportHTTPHandler(SimpleHTTPRequestHandler):
             with STATE.lock:
                 self.wfile.write(json.dumps({"logs": STATE.log_messages}).encode('utf-8'))
                 
-        # 4. 主報表頁面與歡迎頁面
-        elif url_parts.path == "/":
+        # 1. 狀態查詢 API (AJAX 輪詢)
+        elif url_parts.path == "/status":
             self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            # 強制禁止瀏覽器快取 HTML 網頁
+            self.send_header("Content-Type", "application/json")
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
             self.end_headers()
             
-            html_to_serve = ""
             with STATE.lock:
-                html_to_serve = STATE.latest_html
+                response = {
+                    "reload": STATE.has_new_update,
+                    "update_time": STATE.latest_update_time,
+                    "latest_report_path": STATE.latest_report_path
+                }
+                STATE.has_new_update = False
                 
-            if not html_to_serve:
-                # 歡迎引導頁面
-                html_to_serve = """<!DOCTYPE html>
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+            
+        # 新增：動態獲取並渲染專屬歷史報告頁面
+        elif url_parts.path == "/report":
+            query_params = urllib.parse.parse_qs(url_parts.query)
+            report_path_param = query_params.get("path", [""])[0]
+            
+            if not report_path_param or ".." in report_path_param:
+                self.send_error(400, "Invalid report path")
+                return
+                
+            full_report_path = os.path.join("outputs", report_path_param)
+            if os.path.exists(full_report_path):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.end_headers()
+                
+                with open(full_report_path, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                    
+                folder_rel_path = os.path.dirname(report_path_param).replace("\\", "/")
+                html_content = html_content.replace('src="', f'src="/image_file?path={folder_rel_path}/')
+                
+                self.wfile.write(html_content.encode('utf-8'))
+            else:
+                self.send_error(404, "Report File Not Found")
+                
+        # 新增：專用圖片讀取路由，支援從任意歷史報告目錄下讀取實體圖檔
+        elif url_parts.path == "/image_file":
+            query_params = urllib.parse.parse_qs(url_parts.query)
+            image_path_param = query_params.get("path", [""])[0]
+            
+            if not image_path_param or ".." in image_path_param:
+                self.send_error(400, "Invalid image path")
+                return
+                
+            full_image_path = os.path.join("outputs", image_path_param)
+            if os.path.exists(full_image_path):
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.end_headers()
+                with open(full_image_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "Image File Not Found")
+                
+        # 新增：歷史報告列表 API
+        elif url_parts.path == "/history":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            
+            history_list = []
+            if os.path.exists("outputs"):
+                for root, dirs, files in os.walk("outputs"):
+                    for file in files:
+                        if file.endswith("_summary_report.html"):
+                            full_path = os.path.join(root, file)
+                            rel_path = os.path.relpath(full_path, "outputs")
+                            rel_path = rel_path.replace("\\", "/")
+                            mtime = os.path.getmtime(full_path)
+                            
+                            # 提取受試者名稱
+                            name = file.replace("_summary_report.html", "")
+                            history_list.append({
+                                "name": name,
+                                "path": rel_path,
+                                "mtime": mtime
+                            })
+            history_list.sort(key=lambda x: x["mtime"], reverse=True)
+            self.wfile.write(json.dumps({"history": history_list}).encode('utf-8'))
+                
+        # 4. 主報表頁面與歡迎頁面（首頁）
+        elif url_parts.path == "/":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+            self.end_headers()
+            
+            welcome_html = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>PASCO 力板即時監控系統</title>
     <style>
         body {
-            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
-            background-color: #2c3e50;
+            font-family: 'Segoe UI', 'SF Pro Display', 'Microsoft JhengHei', sans-serif;
+            background-color: #1a252f;
             color: #ecf0f1;
             margin: 0;
-            padding: 50px;
+            padding: 40px;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 80vh;
+            min-height: 85vh;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            gap: 25px;
+            max-width: 1100px;
+            width: 100%;
         }
         .welcome-card {
-            background-color: #34495e;
-            padding: 40px;
-            border-radius: 8px;
+            background-color: #2c3e50;
+            padding: 30px;
+            border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            max-width: 600px;
-            width: 100%;
+            flex: 1.2;
+        }
+        .history-card {
+            background-color: #2c3e50;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            flex: 0.8;
+            display: flex;
+            flex-direction: column;
         }
         h1 {
             color: #e67e22;
             margin-top: 0;
             border-bottom: 2px solid #e67e22;
             padding-bottom: 10px;
+            font-size: 24px;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 0;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            font-size: 20px;
         }
         .status-badge {
             background-color: #2ecc71;
             color: white;
-            padding: 4px 10px;
+            padding: 5px 12px;
             border-radius: 20px;
             font-size: 14px;
             display: inline-block;
             margin-bottom: 20px;
+            font-weight: bold;
         }
         ol {
             padding-left: 20px;
             line-height: 1.8;
+            font-size: 14px;
         }
         .log-box {
-            background-color: #1a252f;
-            border-radius: 4px;
+            background-color: #111;
+            border-radius: 6px;
             padding: 15px;
-            height: 150px;
+            height: 200px;
             overflow-y: auto;
-            font-family: monospace;
+            font-family: 'Consolas', 'Courier New', monospace;
             font-size: 12px;
             color: #2ecc71;
-            margin-top: 20px;
+            border: 1px solid #333;
+        }
+        .history-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            max-height: 380px;
+            flex-grow: 1;
+        }
+        .history-item {
+            padding: 12px;
+            border-bottom: 1px solid #34495e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-item a {
+            color: #ecf0f1;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .history-item a:hover {
+            color: #3498db;
+        }
+        .history-time {
+            font-size: 11px;
+            color: #95a5a6;
+        }
+        .no-history {
+            color: #95a5a6;
+            text-align: center;
+            padding: 40px 0;
+            font-style: italic;
         }
     </style>
     <script>
         let currentUpdateTime = null;
-        // 每秒檢查一次是否有新數據分析完成
-        setInterval(function() {
-            // 加入時間戳記避免瀏覽器快取
-            fetch('/status?t=' + Date.now())
-                .then(response => response.json())
-                .then(data => {
-                    // 如果是第一次載入，先記錄最新更新時間
-                    if (currentUpdateTime === null) {
-                        currentUpdateTime = data.update_time;
-                        return;
-                    }
-                    // 如果後端有新的更新時間，且不等於當前記錄的時間
-                    if (data.update_time > 0 && data.update_time !== currentUpdateTime) {
-                        window.location.href = window.location.pathname + '?t=' + Date.now();
-                    }
-                });
+        
+        window.onload = function() {
+            refreshLogs();
+            refreshHistory();
             
-            // 同時更新背景日誌
+            // 每秒輪詢最新狀態，若有新分析則動態開啟新報表分頁
+            setInterval(function() {
+                fetch('/status?t=' + Date.now())
+                    .then(response => response.json())
+                    .then(data => {
+                        if (currentUpdateTime === null) {
+                            currentUpdateTime = data.update_time;
+                            return;
+                        }
+                        if (data.update_time > 0 && data.update_time !== currentUpdateTime) {
+                            currentUpdateTime = data.update_time;
+                            if (data.latest_report_path) {
+                                window.open('/report?path=' + data.latest_report_path, '_blank');
+                            }
+                            refreshHistory();
+                        }
+                    });
+                
+                refreshLogs();
+            }, 1000);
+            
+            setInterval(refreshHistory, 5000);
+        };
+        
+        function refreshLogs() {
             fetch('/logs?t=' + Date.now())
                 .then(response => response.json())
                 .then(data => {
@@ -1218,50 +1367,64 @@ class ReportHTTPHandler(SimpleHTTPRequestHandler):
                         logBox.scrollTop = logBox.scrollHeight;
                     }
                 });
-        }, 1000);
+        }
+        
+        function refreshHistory() {
+            fetch('/history?t=' + Date.now())
+                .then(response => response.json())
+                .then(data => {
+                    const listEl = document.getElementById('history-list');
+                    if (!listEl) return;
+                    
+                    if (!data.history || data.history.length === 0) {
+                        listEl.innerHTML = '<div class="no-history">尚未產生任何歷史報告</div>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.history.forEach(item => {
+                        const date = new Date(item.mtime * 1000);
+                        const timeStr = date.toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                        
+                        html += `
+                            <li class="history-item">
+                                <a href="/report?path=${item.path}" target="_blank">📄 ${item.name} 綜合平均報表</a>
+                                <span class="history-time">${timeStr}</span>
+                            </li>
+                        `;
+                    });
+                    listEl.innerHTML = html;
+                });
+        }
     </script>
 </head>
 <body>
-    <div class="welcome-card">
-        <h1>PASCO 力板即時監控系統已啟動</h1>
-        <div class="status-badge">● 正在背景監控 inputs/ 目錄...</div>
-        <p><strong>使用說明：</strong></p>
-        <ol>
-            <li>在 <code>inputs/cmj/</code> 或 <code>inputs/sj/</code> 下建立專案資料夾（例如：<code>關西棒球檢測</code>）。</li>
-            <li>將 PASCO 產出的 <code>.cap</code> 檔案存檔至該資料夾。</li>
-            <li><strong>推薦檔名格式：</strong><code>姓名_性別_年齡_身高_體重.cap</code>（例如：<code>張華臻_女_13.6_1.68_44.72.cap</code>）以自動提取受試者資訊。</li>
-            <li>分析將會自動完成，此網頁會<strong>無感重整</strong>並顯示精美報表與自動儲存 PDF！</li>
-        </ol>
-        <div id="log-box" class="log-box">正在等待新量測數據...</div>
+    <div class="container">
+        <!-- 左側：歡迎與日誌 -->
+        <div class="welcome-card">
+            <h1>PASCO 力板即時監控系統已啟動</h1>
+            <div class="status-badge">● 正在背景監控 inputs/ 目錄...</div>
+            <p><strong>使用說明：</strong></p>
+            <ol>
+                <li>在 <code>inputs/cmj/</code> 或 <code>inputs/sj/</code> 下建立專案資料夾（例如：<code>關西棒球檢測</code>）。</li>
+                <li>將 PASCO 產出的 <code>.cap</code> 檔案存檔至該資料夾。</li>
+                <li><strong>推薦檔名格式：</strong><code>姓名_性別_年齡_身高_體重.cap</code> 以自動提取受試者資訊。</li>
+                <li>分析將會自動完成，此網頁會<strong>自動彈出新分頁</strong>顯示該次量測的報表！</li>
+            </ol>
+            <div id="log-box" class="log-box">正在等待新量測數據...</div>
+        </div>
+        
+        <!-- 右側：歷史報表列表 -->
+        <div class="history-card">
+            <h2>已分析報告列表</h2>
+            <ul id="history-list" class="history-list">
+                <li class="no-history">歷史報告加載中...</li>
+            </ul>
+        </div>
     </div>
 </body>
 </html>"""
-            # 插入通用輪詢更新腳本，即使在報表畫面也保持自動更新
-            if "window.location.reload()" not in html_to_serve:
-                inject_script = """
-                <script>
-                    let currentUpdateTime = null;
-                    setInterval(function() {
-                        fetch('/status?t=' + Date.now())
-                            .then(response => response.json())
-                            .then(data => {
-                                if (currentUpdateTime === null) {
-                                    currentUpdateTime = data.update_time;
-                                    return;
-                                }
-                                if (data.update_time > 0 && data.update_time !== currentUpdateTime) {
-                                    window.location.href = window.location.pathname + '?t=' + Date.now();
-                                }
-                            });
-                    }, 1000);
-                </script>
-                """
-                if "</body>" in html_to_serve:
-                    html_to_serve = html_to_serve.replace("</body>", inject_script + "</body>")
-                else:
-                    html_to_serve += inject_script
-                    
-            self.wfile.write(html_to_serve.encode('utf-8'))
+            self.wfile.write(welcome_html.encode('utf-8'))
             
         else:
             self.send_error(404, "Page Not Found")
