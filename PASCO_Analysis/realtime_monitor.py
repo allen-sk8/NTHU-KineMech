@@ -1071,25 +1071,39 @@ class ReportHTTPHandler(SimpleHTTPRequestHandler):
             else:
                 self.send_error(404, "Chart Not Found")
                 
-        # 新增：處理以 .png 結尾的圖片請求，回傳當前最新產出的對應圖檔（如力量、功率、位移圖等）
-        elif url_parts.path.endswith(".png"):
-            filename = os.path.basename(url_parts.path)
-            latest_img = ""
+        # 2b. 獲取力量圖檔
+        elif url_parts.path == "/image_force.png":
+            image_path = ""
             with STATE.lock:
-                latest_img = STATE.latest_image_path
+                image_path = STATE.latest_image_path
             
-            # 從最新產出圖檔的目錄下，尋找並回傳對應的 PNG 圖檔
-            if latest_img:
-                target_dir = os.path.dirname(latest_img)
-                full_path = os.path.join(target_dir, filename)
-                if os.path.exists(full_path):
+            if image_path:
+                force_path = image_path.replace("_comparison.png", "_force.png")
+                if os.path.exists(force_path):
                     self.send_response(200)
                     self.send_header("Content-Type", "image/png")
                     self.end_headers()
-                    with open(full_path, 'rb') as f:
+                    with open(force_path, 'rb') as f:
                         self.wfile.write(f.read())
                     return
-            self.send_error(404, "Image Not Found")
+            self.send_error(404, "Force Chart Not Found")
+            
+        # 2c. 獲取功率圖檔
+        elif url_parts.path == "/image_power.png":
+            image_path = ""
+            with STATE.lock:
+                image_path = STATE.latest_image_path
+            
+            if image_path:
+                power_path = image_path.replace("_comparison.png", "_power.png")
+                if os.path.exists(power_path):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/png")
+                    self.end_headers()
+                    with open(power_path, 'rb') as f:
+                        self.wfile.write(f.read())
+                    return
+            self.send_error(404, "Power Chart Not Found")
                 
         # 3. 獲取日誌列表 API
         elif url_parts.path == "/logs":
