@@ -84,6 +84,12 @@ def plot_force_and_power_separate(trial_id, force_series, extra_curves, config, 
     # 2. 繪製功率圖
     fig2, ax2 = plt.subplots(figsize=(8, 4))
     ax2.plot(time_sec, power_curve, color='#27AE60', linewidth=2.5, label='機械功率 (Power)')
+    ax2.axhline(0, color='#7F8C8D', linestyle='--', linewidth=1.2, alpha=0.8, label='零功率線 (Zero Power)')
+    
+    # 確保 0 剛好在 Y 軸正中間且對稱
+    abs_max = np.max(np.abs(power_curve))
+    if abs_max > 0:
+        ax2.set_ylim(-abs_max * 1.15, abs_max * 1.15)
     
     # 標註功率圖中的事件點
     for event_name, frame in events_map.items():
@@ -1064,6 +1070,26 @@ class ReportHTTPHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(f.read())
             else:
                 self.send_error(404, "Chart Not Found")
+                
+        # 新增：處理以 .png 結尾的圖片請求，回傳當前最新產出的對應圖檔（如力量、功率、位移圖等）
+        elif url_parts.path.endswith(".png"):
+            filename = os.path.basename(url_parts.path)
+            latest_img = ""
+            with STATE.lock:
+                latest_img = STATE.latest_image_path
+            
+            # 從最新產出圖檔的目錄下，尋找並回傳對應的 PNG 圖檔
+            if latest_img:
+                target_dir = os.path.dirname(latest_img)
+                full_path = os.path.join(target_dir, filename)
+                if os.path.exists(full_path):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/png")
+                    self.end_headers()
+                    with open(full_path, 'rb') as f:
+                        self.wfile.write(f.read())
+                    return
+            self.send_error(404, "Image Not Found")
                 
         # 3. 獲取日誌列表 API
         elif url_parts.path == "/logs":
